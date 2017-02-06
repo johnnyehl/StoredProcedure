@@ -12,6 +12,8 @@ AS
     Retcode OUT VARCHAR2,
     GlosaRetcode OUT VARCHAR2
   ) IS
+    v_psocion NUMBER;
+    v_psocion_ora NUMBER;
     v_update_rowid ROWID;
     v_tp_id NUMBER;
     v_system_id VARCHAR2(100);
@@ -33,16 +35,23 @@ AS
     xml_participante :=XML_OUT('1',v_xml_resp) ; 
     Retcode := SUBSTR(xml_participante,0,7);
     IF Retcode='FHUB002' then
+      v_psocion := INSTR(xml_participante,'<');
+      Retcode := Retcode;
       GlosaRetcode := 'No se encontraron datos';
       v_code := SUBSTR(xml_participante,8,3);--CODIGO
-      v_errm := SUBSTR(xml_participante,INSTR(xml_participante,'ORA'));--DESC
+      v_psocion_ora := INSTR(xml_participante,'ORA');
+      v_errm := SUBSTR(xml_participante,v_psocion_ora,v_psocion-v_psocion_ora);--DESC
       PCK_LOG_MDM.prc_termina_log(v_log_id, NULL, Retcode, GlosaRetcode, v_code, v_errm, v_update_rowid);
+      xml_participante :=SUBSTR(xml_participante,v_psocion);
     else
-      v_code := SUBSTR(xml_participante,8,3);--CODIGO
-      v_errm := SUBSTR(xml_participante,INSTR(xml_participante,'ORA'));--DESC
-      xml_participante :='<datosConsultarClienteResp>' || xml_participante||'</datosConsultarClienteResp>';
+      v_psocion := INSTR(xml_participante,'<');
+      Retcode := SUBSTR(xml_participante,0,v_psocion-1);
+      v_code := Retcode;
+      v_errm := '';--DESC
       GlosaRetcode := 'Ejecución Exitosa';
       PCK_LOG_MDM.prc_termina_log(v_log_id, NULL, Retcode, GlosaRetcode, v_code, v_errm, v_update_rowid);
+      xml_participante :=SUBSTR(xml_participante,v_psocion);
+      xml_participante :='<datosConsultarClienteResp>' || xml_participante||'</datosConsultarClienteResp>';
     end if;
     EXCEPTION
     WHEN OTHERS THEN
@@ -51,6 +60,11 @@ AS
       v_code := SQLCODE;
       v_errm := SUBSTR(SQLERRM, 1 , 200);
       PCK_LOG_MDM.prc_termina_log(v_log_id, NULL, Retcode, GlosaRetcode, v_code, v_errm, v_update_rowid);
+      xml_participante :='<datosConsultarClienteResp>'|| '<parametrosProcedimientoAlmacenado><nombre>XMLOUT</nombre><tipo>string</tipo><entrada>false</entrada><valor>' ||
+        '<datosCamposBasicos></datosCamposBasicos>' ||
+        '</valor></parametrosProcedimientoAlmacenado>
+        <parametrosProcedimientoAlmacenado><nombre>Retcode</nombre><tipo>string</tipo><entrada>false</entrada><valor>'||Retcode||'</valor></parametrosProcedimientoAlmacenado>
+        <parametrosProcedimientoAlmacenado><nombre>GlosaRetcode</nombre><tipo>string</tipo><entrada>false</entrada><valor>'||GlosaRetcode||'</valor></parametrosProcedimientoAlmacenado>'||'</datosConsultarClienteResp>';
   END prc_datos_basicos;
   
   ------------------------------------------------------------------------------
@@ -164,15 +178,29 @@ AS
       WHEN '4' THEN
         prc_ubicacion_cte(tipoid, numeroid,tipoconsulta,xml_participante);
         
-      ELSE 
+     /* ELSE 
         PCK_LOG_MDM.prc_inicia_log(v_ndoc, SYSDATE, v_update_rowid, v_log_id, v_system_id);
         Retcode:= 'THUB001';
         GlosaRetcode:= 'Error Tecnico de Base de Datos';
-        v_code := '-6592';
+        v_code := SQLCODE;
         v_errm := 'ORA-06592: No se ha encontrado la opción CASE al ejecutar la sentencia CASE';
-        PCK_LOG_MDM.prc_termina_log(v_log_id, NULL, Retcode, GlosaRetcode, v_code, v_errm, v_update_rowid);
+        PCK_LOG_MDM.prc_termina_log(v_log_id, NULL, Retcode, GlosaRetcode, v_code, v_errm, v_update_rowid);*/
     END CASE;
-    xml_participante :=  xml_participante;
+    EXCEPTION
+    WHEN OTHERS THEN
+    --xml_participante :=  xml_participante;
+        PCK_LOG_MDM.prc_inicia_log(v_ndoc, SYSDATE, v_update_rowid, v_log_id, v_system_id);
+        Retcode:= 'THUB001';
+        GlosaRetcode:= 'Error Tecnico de Base de Datos';
+        v_code := SQLCODE;
+        v_errm := SUBSTR(SQLERRM, 1 , 200);
+        PCK_LOG_MDM.prc_termina_log(v_log_id, NULL, Retcode, GlosaRetcode, v_code, v_errm, v_update_rowid);
+         xml_participante :='<datosConsultarClienteResp>'|| '<parametrosProcedimientoAlmacenado><nombre>XMLOUT</nombre><tipo>string</tipo><entrada>false</entrada><valor>' ||
+        '<datosCamposBasicos></datosCamposBasicos>' ||
+        '</valor></parametrosProcedimientoAlmacenado>
+        <parametrosProcedimientoAlmacenado><nombre>Retcode</nombre><tipo>string</tipo><entrada>false</entrada><valor>'||Retcode||'</valor></parametrosProcedimientoAlmacenado>
+        <parametrosProcedimientoAlmacenado><nombre>GlosaRetcode</nombre><tipo>string</tipo><entrada>false</entrada><valor>'||GlosaRetcode||'</valor></parametrosProcedimientoAlmacenado>'||'</datosConsultarClienteResp>';
+        
   END INICIO;
 
 END PCK_CONS_CLIENTE_SERV_MDM;
